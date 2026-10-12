@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1f6f5c">
+  <title>Planificador</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- Pantalla de acceso -->
+  <section id="pantalla-login" class="login oculto">
+    <div class="login-card">
+      <h1>Planificador</h1>
+      <p class="sub">Organiza tu día, tu mes y tu año</p>
+      <div class="tabs-login">
+        <button type="button" data-modo="entrar" class="activo">Entrar</button>
+        <button type="button" data-modo="registro">Crear cuenta</button>
+      </div>
+      <form id="form-login">
+        <input id="l-nombre" placeholder="Tu nombre" class="solo-registro oculto" autocomplete="name">
+        <input id="l-email" type="email" placeholder="Correo" required autocomplete="email">
+        <input id="l-pass" type="password" placeholder="Contraseña (mínimo 6 caracteres)" required minlength="6" autocomplete="current-password">
+        <button type="submit" class="btn primario" id="btn-login">Entrar</button>
+      </form>
+      <div class="separador"><span>o</span></div>
+      <button type="button" id="btn-google" class="btn">Continuar con Google</button>
+      <button type="button" id="btn-reset" class="link">Olvidé mi contraseña</button>
+      <p id="login-msg" class="msg"></p>
+    </div>
+  </section>
+
+  <!-- Aplicación -->
+  <section id="pantalla-app" class="oculto">
+    <header class="topbar">
+      <div class="marca">Planificador</div>
+      <div class="usuario">
+        <span id="u-nombre"></span>
+        <button type="button" id="btn-salir" class="btn chico">Salir</button>
+      </div>
+      <nav id="nav">
+        <button type="button" data-vista="dia" class="activo">Día</button>
+        <button type="button" data-vista="mes">Mes</button>
+        <button type="button" data-vista="anio">Año</button>
+        <button type="button" data-vista="reuniones">Reuniones</button>
+        <button type="button" data-vista="proyectos">Proyectos</button>
+      </nav>
+    </header>
+    <main id="contenido"></main>
+    <button type="button" id="fab" class="fab" title="Agregar">+</button>
+  </section>
+
+  <dialog id="modal"><form id="modal-form"></form></dialog>
+  <div id="cargando" class="cargando">Cargando…</div>
+  <div id="toast" class="toast"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
