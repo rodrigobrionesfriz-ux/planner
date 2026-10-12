@@ -5,7 +5,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  collection, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, serverTimestamp
+  collection, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, serverTimestamp,
+  deleteField, arrayUnion
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
 
@@ -83,6 +84,35 @@ function reuniones() {
   [...S.reunPropias, ...S.reunInvit].forEach((r) => m.set(r.id, r));
   return [...m.values()];
 }
+/* ---------- Tareas que se repiten ----------
+   Una serie es un solo documento en "tareas" con repetir = "semanal" | "mensual".
+   fecha = inicio, hasta = término opcional, diasSemana = [0..6] (0 = domingo),
+   diaMes = 1..31, hechas = { "AAAA-MM-DD": true }, excepciones = ["AAAA-MM-DD"]. */
+const esSerie = (t) => t.repetir === "semanal" || t.repetir === "mensual";
+const ORDEN_SEMANA = [1, 2, 3, 4, 5, 6, 0];
+const LETRAS_SEMANA = { 0: "Do", 1: "Lu", 2: "Ma", 3: "Mi", 4: "Ju", 5: "Vi", 6: "Sá" };
+
+function ocurre(t, f) {
+  if (!esSerie(t)) return t.fecha === f;
+  if (!t.fecha || f < t.fecha || (t.hasta && f > t.hasta) || (t.excepciones || []).includes(f)) return false;
+  const d = parseISO(f);
+  if (t.repetir === "semanal") return (t.diasSemana || []).includes(d.getDay());
+  const ultimo = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  return d.getDate() === Math.min(Number(t.diaMes) || 1, ultimo);
+}
+const instancia = (t, f) => esSerie(t) ? { ...t, fecha: f, completada: !!(t.hechas || {})[f] } : t;
+const tareasEn = (f) => S.tareas.filter((t) => ocurre(t, f)).map((t) => instancia(t, f));
+function tareasEntre(a, b) {
+  const out = [];
+  for (let f = a; f <= b; f = sumarDias(f, 1)) out.push(...tareasEn(f));
+  return out;
+}
+function textoRep(t) {
+  if (t.repetir === "semanal") return "Semanal: " + ORDEN_SEMANA.filter((n) => (t.diasSemana || []).includes(n)).map((n) => LETRAS_SEMANA[n]).join(", ");
+  if (t.repetir === "mensual") return `Mensual: día ${t.diaMes}`;
+  return "";
+}
+
 const proyectoPorId = (id) => S.proyectos.find((p) => p.id === id);
 const proyActivos = (f) => S.proyectos.filter((p) => p.fechaInicio <= f && p.fechaFin >= f);
 
@@ -225,10 +255,10 @@ $("#fab").addEventListener("click", () => {
 /* ---------- Vista DÍA ---------- */
 function itemTarea(t) {
   const p = t.proyectoId ? proyectoPorId(t.proyectoId) : null;
-  return `<div class="item tarea prio-${esc(t.prioridad || "media")} ${t.completada ? "hecha" : ""}" data-accion="editar-tarea" data-id="${t.id}">
-    <input type="checkbox" ${t.completada ? "checked" : ""} data-accion="toggle-tarea" data-id="${t.id}" aria-label="Completar">
+  return `<div class="item tarea prio-${esc(t.prioridad || "media")} ${t.completada ? "hecha" : ""}" data-accion="editar-tarea" data-id="${t.id}" data-fecha="${esc(t.fecha)}">
+    <input type="checkbox" ${t.completada ? "checked" : ""} data-accion="toggle-tarea" data-id="${t.id}" data-fecha="${esc(t.fecha)}" aria-label="Completar">
     <div class="item-txt"><b>${esc(t.titulo)}</b>
-      <small>${rangoHora(t)}${t.categoria ? " · " + esc(t.categoria) : ""}${p ? ` · <span class="tag" style="--c:${esc(p.color)}">${esc(p.nombre)}</span>` : ""}</small>
+      <small>${rangoHora(t)}${esSerie(t) ? ` · <span class="rep" title="${esc(textoRep(t))}">↻ ${t.repetir === "semanal" ? "Semanal" : "Mensual"}</span>` : ""}${t.categoria ? " · " + esc(t.categoria) : ""}${p ? ` · <span class="tag" style="--c:${esc(p.color)}">${esc(p.nombre)}</span>` : ""}</small>
     </div></div>`;
 }
 function itemReunion(r) {
@@ -242,7 +272,7 @@ function itemReunion(r) {
 
 function vistaDia() {
   const f = S.fecha, hoy = hoyISO();
-  const tareas = S.tareas.filter((t) => t.fecha === f).sort(porHora);
+  const tareas = tareasEn(f).sort(porHora);
   const reus = reuniones().filter((r) => r.fecha === f).sort(porHora);
   const hechas = tareas.filter((t) => t.completada).length;
   const pct = tareas.length ? Math.round((hechas / tareas.length) * 100) : 0;
@@ -301,7 +331,7 @@ function vistaMes() {
     const f = `${prefijo}-${pad(d)}`;
     const items = [
       ...reus.filter((r) => r.fecha === f).map((r) => ({ t: r.titulo, c: "reu", h: r.horaInicio })),
-      ...S.tareas.filter((t) => t.fecha === f).map((t) => ({ t: t.titulo, c: t.completada ? "hecha" : "tar", h: t.horaInicio }))
+      ...tareasEn(f).map((t) => ({ t: t.titulo, c: t.completada ? "hecha" : "tar", h: t.horaInicio }))
     ].sort((a, b) => (a.h || "99").localeCompare(b.h || "99"));
     const dots = proyActivos(f).map((p) => `<i style="background:${esc(p.color)}"></i>`).join("");
     celdas += `<div class="celda ${f === hoy ? "hoy" : ""}" data-accion="ir-dia" data-fecha="${f}">
@@ -309,9 +339,20 @@ function vistaMes() {
       ${items.slice(0, 3).map((x) => `<div class="chip ${x.c}">${esc(x.t)}</div>`).join("")}
       ${items.length > 3 ? `<div class="mas">+${items.length - 3}</div>` : ""}</div>`;
   }
-  const tMes = S.tareas.filter((t) => t.fecha?.startsWith(prefijo));
+  const iniMes = `${prefijo}-01`, finMes = `${prefijo}-${pad(nDias)}`;
+  const tMes = tareasEntre(iniMes, finMes);
   const rMes = reus.filter((r) => r.fecha?.startsWith(prefijo));
   const metasMes = S.metas.filter((x) => x.anio === y && (x.mes === m || x.mes === -1));
+  const series = S.tareas.filter((t) => esSerie(t) && t.fecha <= finMes && (!t.hasta || t.hasta >= iniMes))
+    .sort((a, b) => a.titulo.localeCompare(b.titulo));
+  const listaSeries = series.length
+    ? `<div class="lista">${series.map((t) => `
+      <div class="item tarea prio-${esc(t.prioridad || "media")}" data-accion="editar-serie" data-id="${t.id}">
+        <span class="ico rep">↻</span>
+        <div class="item-txt"><b>${esc(t.titulo)}</b>
+          <small>${esc(textoRep(t))}${t.horaInicio ? " · " + rangoHora(t) : ""} · desde ${fechaCorta(t.fecha)}${t.hasta ? ` hasta ${fechaCorta(t.hasta)}` : ""}</small></div>
+      </div>`).join("")}</div>`
+    : `<p class="vacio">No hay tareas repetitivas este mes. Al crear una tarea, elige "Repetir" semanal o mensual.</p>`;
 
   return `
   <div class="barra-nav">
@@ -326,6 +367,8 @@ function vistaMes() {
     <div class="kpi"><b>${rMes.length}</b><span>reuniones</span></div>
   </div>
   <div class="calendario">${celdas}</div>
+  <h3>Tareas que se repiten</h3>
+  ${listaSeries}
   <h3>Metas de ${MESES[m]}</h3>
   ${listaMetas(metasMes, true)}
   ${formMeta(y, m)}`;
@@ -335,7 +378,6 @@ function vistaMes() {
 function vistaAnio() {
   const y = S.anio, hoy = hoyISO();
   const conteo = {};
-  S.tareas.forEach((t) => { if (t.fecha?.startsWith(String(y))) conteo[t.fecha] = (conteo[t.fecha] || 0) + 1; });
   reuniones().forEach((r) => { if (r.fecha?.startsWith(String(y))) conteo[r.fecha] = (conteo[r.fecha] || 0) + 1; });
 
   let meses = "";
@@ -347,7 +389,7 @@ function vistaAnio() {
     let total = 0;
     for (let d = 1; d <= nDias; d++) {
       const f = `${y}-${pad(m + 1)}-${pad(d)}`;
-      const n = conteo[f] || 0; total += n;
+      const n = (conteo[f] || 0) + tareasEn(f).length; total += n;
       const nivel = n === 0 ? 0 : n === 1 ? 1 : n <= 3 ? 2 : 3;
       dias += `<span class="d n${nivel} ${f === hoy ? "hoy" : ""}" data-accion="ir-dia" data-fecha="${f}" title="${n} actividades">${d}</span>`;
     }
@@ -510,11 +552,19 @@ const acciones = {
 
   "nueva-tarea": () => abrirTarea(null, { fecha: S.fecha }),
   "nueva-en-hora": (d) => abrirTarea(null, { fecha: S.fecha, horaInicio: d.hora }),
-  "editar-tarea": (d) => abrirTarea(S.tareas.find((t) => t.id === d.id)),
+  "editar-tarea": (d) => {
+    const t = S.tareas.find((x) => x.id === d.id);
+    if (t) abrirTarea(t, {}, esSerie(t) ? d.fecha : null);
+  },
+  "editar-serie": (d) => { const t = S.tareas.find((x) => x.id === d.id); if (t) abrirTarea(t); },
   "toggle-tarea": (d, e) => {
     e.stopPropagation();
     const t = S.tareas.find((x) => x.id === d.id);
-    if (t) seguro(() => updateDoc(docU("tareas", t.id), { completada: !t.completada }));
+    if (!t) return;
+    if (esSerie(t)) {
+      const hecha = !!(t.hechas || {})[d.fecha];
+      seguro(() => updateDoc(docU("tareas", t.id), { [`hechas.${d.fecha}`]: hecha ? deleteField() : true }));
+    } else seguro(() => updateDoc(docU("tareas", t.id), { completada: !t.completada }));
   },
 
   "nueva-reunion": () => abrirReunion(null, { fecha: S.vista === "dia" ? S.fecha : hoyISO() }),
@@ -571,6 +621,22 @@ modalForm.addEventListener("click", (e) => {
   if (acc === "add-hito") $("#hitos-lista").insertAdjacentHTML("beforeend", filaHito({}));
   if (acc === "quitar-hito") b.closest(".hito-row").remove();
 });
+modalForm.addEventListener("change", (e) => {
+  const id = e.target.id;
+  if (id === "f-rep") mostrarCamposRep();
+  if (id === "f-aplica") {
+    const soloDia = e.target.value === "dia";
+    modalForm.querySelector("#f-fecha").value = soloDia ? e.target.dataset.inst : e.target.dataset.ini;
+    modalForm.querySelector("#f-fecha-lbl").firstChild.textContent = soloDia ? "Fecha" : "Inicio";
+    modalForm.querySelector("#bloque-rep").classList.toggle("oculto", soloDia);
+  }
+});
+function mostrarCamposRep() {
+  const rep = val("f-rep");
+  modalForm.querySelectorAll(".rep-campo").forEach((el) => el.classList.toggle("oculto", rep === "no"));
+  modalForm.querySelector(".rep-semanal").classList.toggle("oculto", rep !== "semanal");
+  modalForm.querySelectorAll(".rep-mensual").forEach((el) => el.classList.toggle("oculto", rep !== "mensual"));
+}
 
 function abrirModal(titulo, cuerpo, { guardar, eliminar, soloLectura = false } = {}) {
   alGuardar = guardar || null;
@@ -591,16 +657,41 @@ function abrirModal(titulo, cuerpo, { guardar, eliminar, soloLectura = false } =
 const val = (id) => modalForm.querySelector("#" + id)?.value.trim() ?? "";
 
 /* ---------- Tarea ---------- */
-function abrirTarea(t, def = {}) {
+function abrirTarea(t, def = {}, fechaInst = null) {
   const x = t || { prioridad: "media", ...def };
+  const serie = !!t && esSerie(t);
+  const inst = serie && fechaInst ? fechaInst : null;
   const cats = [...new Set(S.tareas.map((y) => y.categoria).filter(Boolean))];
   const proys = S.proyectos.map((p) => `<option value="${p.id}" ${x.proyectoId === p.id ? "selected" : ""}>${esc(p.nombre)}</option>`).join("");
-  abrirModal(t ? "Editar tarea" : "Nueva tarea", `
+  const rep = esSerie(x) ? x.repetir : "no";
+  const base = parseISO(x.fecha || hoyISO());
+  const diasSel = x.diasSemana?.length ? x.diasSemana : [base.getDay()];
+  const diaMes = x.diaMes || base.getDate();
+  const chipsDias = ORDEN_SEMANA.map((n) => `<label><input type="checkbox" class="f-dia" value="${n}" ${diasSel.includes(n) ? "checked" : ""}><span>${LETRAS_SEMANA[n]}</span></label>`).join("");
+  const hechaInst = inst ? !!(t.hechas || {})[inst] : false;
+
+  abrirModal(t ? (serie ? "Editar tarea repetitiva" : "Editar tarea") : "Nueva tarea", `
+    ${inst ? `<div class="aviso-serie"><label>Aplicar cambios a<select id="f-aplica" data-inst="${esc(inst)}" data-ini="${esc(t.fecha)}">
+      <option value="serie">Toda la serie</option>
+      <option value="dia">Solo el ${fechaCorta(inst)}</option></select></label></div>` : ""}
     <label>Título<input id="f-titulo" required value="${esc(x.titulo)}"></label>
     <div class="fila3">
-      <label>Fecha<input id="f-fecha" type="date" required value="${esc(x.fecha)}"></label>
+      <label id="f-fecha-lbl">${serie ? "Inicio" : "Fecha"}<input id="f-fecha" type="date" required value="${esc(x.fecha)}"></label>
       <label>Desde<input id="f-hi" type="time" value="${esc(x.horaInicio)}"></label>
       <label>Hasta<input id="f-hf" type="time" value="${esc(x.horaFin)}"></label>
+    </div>
+    <div id="bloque-rep">
+      <div class="fila2">
+        <label>Repetir<select id="f-rep">
+          <option value="no" ${rep === "no" ? "selected" : ""}>No se repite</option>
+          <option value="semanal" ${rep === "semanal" ? "selected" : ""}>Cada semana</option>
+          <option value="mensual" ${rep === "mensual" ? "selected" : ""}>Cada mes</option>
+        </select></label>
+        <label class="rep-campo ${rep === "no" ? "oculto" : ""}">Termina el (opcional)<input id="f-hasta" type="date" value="${esc(x.hasta)}"></label>
+      </div>
+      <div class="rep-semanal ${rep !== "semanal" ? "oculto" : ""}"><span class="lbl">Días de la semana</span><div class="dias-semana">${chipsDias}</div></div>
+      <label class="rep-mensual ${rep !== "mensual" ? "oculto" : ""}">Día del mes<input id="f-diames" type="number" min="1" max="31" value="${diaMes}"></label>
+      <p class="nota rep-mensual ${rep !== "mensual" ? "oculto" : ""}">Si un mes no tiene ese día (por ejemplo el 31), la tarea cae el último día de ese mes.</p>
     </div>
     <div class="fila2">
       <label>Prioridad<select id="f-prio">
@@ -611,18 +702,58 @@ function abrirTarea(t, def = {}) {
     </div>
     <label>Proyecto<select id="f-proy"><option value="">Ninguno</option>${proys}</select></label>
     <label>Notas<textarea id="f-desc" rows="3">${esc(x.descripcion)}</textarea></label>
-    ${t ? `<label class="check"><input id="f-hecha" type="checkbox" ${x.completada ? "checked" : ""}> Completada</label>` : ""}`,
+    ${inst ? `<label class="check"><input id="f-hecha" type="checkbox" ${hechaInst ? "checked" : ""}> Hecha el ${fechaCorta(inst)}</label>`
+      : t && !serie ? `<label class="check"><input id="f-hecha" type="checkbox" ${x.completada ? "checked" : ""}> Completada</label>` : ""}`,
   {
     guardar: async () => {
-      const data = {
+      const comun = {
         titulo: val("f-titulo"), fecha: val("f-fecha"), horaInicio: val("f-hi"), horaFin: val("f-hf"),
         prioridad: val("f-prio"), categoria: val("f-cat"), proyectoId: val("f-proy"), descripcion: val("f-desc")
       };
-      if (data.horaInicio && data.horaFin && data.horaFin < data.horaInicio) { toast("La hora de término es anterior al inicio", true); return false; }
-      if (t) { data.completada = modalForm.querySelector("#f-hecha").checked; await seguro(() => updateDoc(docU("tareas", t.id), data), "Tarea actualizada"); }
-      else await seguro(() => addDoc(col("tareas"), { ...data, completada: false, creado: serverTimestamp() }), "Tarea creada");
+      if (comun.horaInicio && comun.horaFin && comun.horaFin < comun.horaInicio) { toast("La hora de término es anterior al inicio", true); return false; }
+      const hechaChk = modalForm.querySelector("#f-hecha")?.checked || false;
+
+      // Cambiar solo un día de la serie: se crea una tarea suelta y ese día se excluye de la serie.
+      if (inst && val("f-aplica") === "dia") {
+        await seguro(async () => {
+          await addDoc(col("tareas"), { ...comun, repetir: "", completada: hechaChk, creado: serverTimestamp() });
+          await updateDoc(docU("tareas", t.id), { excepciones: arrayUnion(inst) });
+        }, "Cambio guardado solo para ese día");
+        return;
+      }
+
+      const repetir = val("f-rep");
+      const data = { ...comun, repetir: repetir === "no" ? "" : repetir };
+      if (repetir !== "no") {
+        data.hasta = val("f-hasta");
+        if (data.hasta && data.hasta < data.fecha) { toast("La fecha de término es anterior al inicio", true); return false; }
+        if (repetir === "semanal") {
+          data.diasSemana = [...modalForm.querySelectorAll(".f-dia:checked")].map((c) => Number(c.value));
+          if (!data.diasSemana.length) { toast("Elige al menos un día de la semana", true); return false; }
+        } else {
+          data.diaMes = Math.min(31, Math.max(1, Math.round(Number(val("f-diames")) || 1)));
+        }
+      }
+
+      if (t) {
+        if (inst) data[`hechas.${inst}`] = hechaChk ? true : deleteField();
+        else if (!serie && repetir === "no") data.completada = hechaChk;
+        await seguro(() => updateDoc(docU("tareas", t.id), data), repetir === "no" ? "Tarea actualizada" : "Serie actualizada");
+      } else {
+        await seguro(() => addDoc(col("tareas"), { ...data, completada: false, creado: serverTimestamp() }),
+          repetir === "no" ? "Tarea creada" : "Tarea repetitiva creada");
+      }
     },
-    eliminar: t ? () => { if (confirm("¿Eliminar esta tarea?")) { modal.close(); seguro(() => deleteDoc(docU("tareas", t.id)), "Tarea eliminada"); } } : null
+    eliminar: t ? () => {
+      if (inst && val("f-aplica") === "dia") {
+        if (confirm(`¿Quitar esta tarea solo del ${fechaCorta(inst)}? El resto de la serie se mantiene.`)) {
+          modal.close(); seguro(() => updateDoc(docU("tareas", t.id), { excepciones: arrayUnion(inst) }), "Quitada de ese día");
+        }
+        return;
+      }
+      const msg = serie ? "¿Eliminar toda la serie? La tarea desaparece de todos los días." : "¿Eliminar esta tarea?";
+      if (confirm(msg)) { modal.close(); seguro(() => deleteDoc(docU("tareas", t.id)), serie ? "Serie eliminada" : "Tarea eliminada"); }
+    } : null
   });
 }
 
