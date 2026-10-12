@@ -42,7 +42,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const porHora = (a, b) => (a.horaInicio || "99").localeCompare(b.horaInicio || "99");
 const rangoHora = (x) => x.horaInicio ? (x.horaFin ? `${x.horaInicio} a ${x.horaFin}` : x.horaInicio) : "Sin hora";
 const urlSegura = (u) => /^https?:\/\//i.test(u || "") ? u : "";
-const COLORES = ["#1f6f5c", "#2f6fb0", "#b0602f", "#8a3fb0", "#b03f5e", "#5e8a2f", "#2f9db0"];
+const COLORES = ["#455a64", "#1e88e5", "#00897b", "#f4511e", "#8e24aa", "#c0ca33", "#6d4c41"];
 
 function toast(msg, error = false) {
   const t = $("#toast");
@@ -342,7 +342,7 @@ function vistaAnio() {
   for (let m = 0; m < 12; m++) {
     const offset = (new Date(y, m, 1).getDay() + 6) % 7;
     const nDias = new Date(y, m + 1, 0).getDate();
-    let dias = "";
+    let dias = ["L", "M", "M", "J", "V", "S", "D"].map((l, i) => `<span class="dl${i >= 5 ? " finde" : ""}">${l}</span>`).join("");
     for (let i = 0; i < offset; i++) dias += `<span></span>`;
     let total = 0;
     for (let d = 1; d <= nDias; d++) {

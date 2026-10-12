@@ -1,24 +1,26 @@
 :root {
-  --fondo: #f4f6f5;
+  /* Paleta azul gris (Blue Grey) */
+  --fondo: #eceff1;
   --panel: #ffffff;
-  --texto: #1d2522;
-  --suave: #66736e;
-  --borde: #dfe5e2;
-  --acento: #1f6f5c;
-  --acento-2: #e6f2ee;
-  --reu: #2f6fb0;
-  --reu-2: #e7f0fa;
-  --alta: #c0392b;
-  --media: #d4a017;
-  --baja: #5e8a2f;
-  --peligro: #b03030;
+  --texto: #263238;
+  --suave: #607d8b;
+  --borde: #cfd8dc;
+  --acento: #455a64;
+  --acento-2: #e3e9ec;
+  --reu: #1e88e5;
+  --reu-2: #e3f2fd;
+  --alta: #e53935;
+  --media: #fb8c00;
+  --baja: #78909c;
+  --peligro: #c62828;
+  --sobre-acento: #ffffff;
   --radio: 10px;
-  --sombra: 0 1px 3px rgba(0, 0, 0, .08);
+  --sombra: 0 1px 3px rgba(38, 50, 56, .10);
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --fondo: #121715; --panel: #1b2220; --texto: #e4ebe8; --suave: #93a19b; --borde: #2c3633;
-    --acento: #4bb89a; --acento-2: #1d332c; --reu: #6aa7e6; --reu-2: #1c2a3a; --sombra: none;
+    --fondo: #1c2429; --panel: #263238; --texto: #eceff1; --suave: #90a4ae; --borde: #37474f;
+    --acento: #90a4ae; --acento-2: #34444c; --reu: #64b5f6; --reu-2: #1f3445; --baja: #b0bec5; --sobre-acento: #1c2429; --sombra: none;
   }
 }
 
@@ -45,7 +47,7 @@ label.check input { width: auto; }
 /* Botones */
 .btn { border: 1px solid var(--borde); background: var(--panel); padding: .55em 1em; border-radius: 8px; cursor: pointer; }
 .btn:hover { border-color: var(--acento); }
-.btn.primario { background: var(--acento); border-color: var(--acento); color: #fff; }
+.btn.primario { background: var(--acento); border-color: var(--acento); color: var(--sobre-acento); }
 .btn.peligro { color: var(--peligro); border-color: var(--peligro); }
 .btn.chico { padding: .35em .7em; font-size: .85rem; }
 .link { background: none; border: 0; color: var(--acento); cursor: pointer; margin-top: .6em; }
@@ -58,7 +60,7 @@ label.check input { width: auto; }
 .sub { color: var(--suave); margin-top: 0; }
 .tabs-login { display: flex; border: 1px solid var(--borde); border-radius: 8px; overflow: hidden; margin: 1em 0; }
 .tabs-login button { flex: 1; border: 0; background: none; padding: .55em; cursor: pointer; }
-.tabs-login button.activo { background: var(--acento); color: #fff; }
+.tabs-login button.activo { background: var(--acento); color: var(--sobre-acento); }
 #form-login { display: grid; gap: .6em; }
 #form-login .btn { width: 100%; }
 #btn-google { width: 100%; }
@@ -86,7 +88,7 @@ main { max-width: 960px; margin: 0 auto; padding: 12px 16px 100px; }
 .barra-nav .btn.primario { margin-left: auto; }
 .segmento { display: flex; border: 1px solid var(--borde); border-radius: 8px; overflow: hidden; }
 .segmento button { border: 0; background: var(--panel); padding: .4em .9em; cursor: pointer; }
-.segmento button.activo { background: var(--acento); color: #fff; }
+.segmento button.activo { background: var(--acento); color: var(--sobre-acento); }
 
 /* KPIs */
 .resumen { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0; }
@@ -155,9 +157,11 @@ main { max-width: 960px; margin: 0 auto; padding: 12px 16px 100px; }
 .mini-cab small { font-weight: 400; color: var(--suave); font-size: .72rem; }
 .mini-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
 .mini-grid .d { font-size: .62rem; text-align: center; padding: 3px 0; border-radius: 3px; cursor: pointer; }
+.mini-grid .dl { font-size: .6rem; font-weight: 700; text-align: center; color: var(--suave); padding-bottom: 3px; border-bottom: 1px solid var(--borde); margin-bottom: 2px; }
+.mini-grid .dl.finde { color: var(--acento); }
 .d.n1 { background: color-mix(in srgb, var(--acento) 25%, transparent); }
-.d.n2 { background: color-mix(in srgb, var(--acento) 55%, transparent); color: #fff; }
-.d.n3 { background: var(--acento); color: #fff; }
+.d.n2 { background: color-mix(in srgb, var(--acento) 55%, transparent); color: var(--sobre-acento); }
+.d.n3 { background: var(--acento); color: var(--sobre-acento); }
 .d.hoy { outline: 2px solid var(--reu); }
 
 .form-meta { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
@@ -197,7 +201,7 @@ main { max-width: 960px; margin: 0 auto; padding: 12px 16px 100px; }
 .g-hoy { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--peligro); z-index: 1; }
 
 /* Botón flotante */
-.fab { position: fixed; right: 18px; bottom: 18px; width: 56px; height: 56px; border-radius: 50%; border: 0; background: var(--acento); color: #fff; font-size: 2rem; line-height: 1; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+.fab { position: fixed; right: 18px; bottom: 18px; width: 56px; height: 56px; border-radius: 50%; border: 0; background: var(--acento); color: var(--sobre-acento); font-size: 2rem; line-height: 1; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
 
 /* Modal */
 dialog { border: 0; border-radius: 14px; padding: 0; width: min(560px, calc(100vw - 24px)); max-height: calc(100vh - 32px); background: var(--panel); color: var(--texto); box-shadow: 0 10px 40px rgba(0,0,0,.3); }
