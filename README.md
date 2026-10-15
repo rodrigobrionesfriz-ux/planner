@@ -11,6 +11,8 @@ App web multiusuario para planificar el día, el mes y el año. Se aloja gratis 
 - **Proyectos de varios días:** hitos con fecha, avance automático, gráfico de avance real vs esperado y línea de tiempo (Gantt) con marca de hoy.
 - Acceso con correo y contraseña o con Google. Cada usuario ve solo sus datos.
 - **Tareas que se repiten:** cada semana (eliges los días) o cada mes (eliges el día), con fecha de término opcional. Cada repetición se marca como hecha por separado, y al editar o eliminar puedes elegir solo ese día o toda la serie. En la vista Mes aparece la lista de tareas repetitivas.
+- **App instalable (PWA):** se instala en el celular o el computador como una app más, con su ícono, y abre aunque no haya conexión.
+- **Hoy destacado:** en Mes y Año el día actual queda marcado en azul, y en Año también el mes en curso.
 - Funciona sin conexión momentánea (caché local de Firestore) y se adapta a celular y modo oscuro.
 
 ## Archivos
@@ -22,6 +24,9 @@ App web multiusuario para planificar el día, el mes y el año. Se aloja gratis 
 | `app.js` | Lógica, vistas y conexión a Firebase |
 | `firebase-config.js` | Tus credenciales de Firebase (lo único que debes editar) |
 | `firestore.rules` | Reglas de seguridad para pegar en Firebase |
+| `manifest.webmanifest` | Nombre, colores e íconos de la app instalable |
+| `sw.js` | Service worker: guarda la app para abrirla sin conexión |
+| `icons/` | Íconos de la app |
 
 ## Puesta en marcha (unos 15 minutos)
 
@@ -71,3 +76,10 @@ Es normal que `firebase-config.js` quede público en GitHub. Esa clave solo iden
 - Que los invitados confirmen asistencia.
 - Recordatorios por notificación.
 - Exportar a Excel o PDF el resumen del mes.
+
+## Instalar la app
+- **Android o computador (Chrome/Edge):** aparece el botón **Instalar app** arriba, o usa el menú del navegador > *Instalar app*.
+- **iPhone (Safari):** botón Compartir > *Agregar a pantalla de inicio*.
+
+## Publicar cambios futuros
+Cada vez que cambies archivos de la app, sube el número `VERSION` en `sw.js` (por ejemplo de `v4` a `v5`). Así los equipos con la app instalada muestran el aviso "Hay una versión nueva" y se actualizan con un toque.

@@ -237,3 +237,25 @@ input[type=range] { padding: 0; border: 0; accent-color: var(--acento); }
 .toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%) translateY(20px); background: var(--texto); color: var(--panel); padding: .6em 1.1em; border-radius: 20px; font-size: .88rem; opacity: 0; pointer-events: none; transition: .25s; z-index: 100; max-width: 90vw; }
 .toast.visible { opacity: 1; transform: translateX(-50%); }
 .toast.error { background: var(--peligro); color: #fff; }
+
+/* Día actual destacado en Mes y Año */
+.celda.hoy { border: 2px solid var(--reu); background: var(--reu-2); box-shadow: 0 0 0 3px color-mix(in srgb, var(--reu) 25%, transparent); }
+.celda.hoy:hover { background: var(--reu-2); }
+.celda.hoy .num { display: flex; align-items: center; gap: 4px; }
+.num-hoy { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 4px; border-radius: 11px; background: var(--reu); color: #fff; font-weight: 700; }
+.lbl-hoy { font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--reu); }
+.mini-mes.actual { border: 2px solid var(--reu); box-shadow: 0 0 0 3px color-mix(in srgb, var(--reu) 20%, transparent); }
+.mini-grid .d.hoy { background: var(--reu); color: #fff; font-weight: 700; outline: none; border-radius: 5px; box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--reu); position: relative; z-index: 1; }
+@media (max-width: 520px) {
+  .lbl-hoy { display: none; }
+  .mini-cab .lbl-hoy { display: inline; }
+  .num-hoy { min-width: 20px; height: 20px; }
+}
+
+/* PWA */
+.btn.instalar { border-color: var(--reu); color: var(--reu); }
+.aviso-version { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 90; display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--borde); box-shadow: 0 6px 24px rgba(0,0,0,.2); border-radius: 12px; padding: 8px 10px 8px 14px; font-size: .88rem; max-width: calc(100vw - 24px); }
+@media (display-mode: standalone) {
+  .topbar { padding-top: max(8px, env(safe-area-inset-top)); }
+  .fab { bottom: max(18px, calc(env(safe-area-inset-bottom) + 10px)); }
+}

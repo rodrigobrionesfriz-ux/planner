@@ -2,9 +2,17 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#455a64">
   <title>Planificador</title>
+  <meta name="description" content="Organiza tu día, tu mes y tu año: tareas, reuniones y proyectos.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Planificador">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
@@ -37,6 +45,7 @@
     <header class="topbar">
       <div class="marca">Planificador</div>
       <div class="usuario">
+        <button type="button" id="btn-instalar" class="btn chico instalar oculto">Instalar app</button>
         <span id="u-nombre"></span>
         <button type="button" id="btn-salir" class="btn chico">Salir</button>
       </div>
@@ -55,6 +64,10 @@
   <dialog id="modal"><form id="modal-form"></form></dialog>
   <div id="cargando" class="cargando">Cargando…</div>
   <div id="toast" class="toast"></div>
+  <div id="aviso-version" class="aviso-version oculto">
+    <span>Hay una versión nueva del Planificador.</span>
+    <button type="button" id="btn-actualizar" class="btn chico primario">Actualizar</button>
+  </div>
 
   <script type="module" src="app.js"></script>
 </body>

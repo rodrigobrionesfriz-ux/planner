@@ -235,7 +235,12 @@ $("#nav").addEventListener("click", (e) => {
   if (!b) return;
   S.vista = b.dataset.vista;
   render();
+  if (S.vista === "anio") verMesActual();
 });
+function verMesActual() {
+  const el = document.getElementById("mes-actual");
+  if (el && window.innerWidth < 760) el.scrollIntoView({ behavior: "smooth", block: "center" });
+}
 
 function render() {
   if (!S.user) return;
@@ -335,7 +340,7 @@ function vistaMes() {
     ].sort((a, b) => (a.h || "99").localeCompare(b.h || "99"));
     const dots = proyActivos(f).map((p) => `<i style="background:${esc(p.color)}"></i>`).join("");
     celdas += `<div class="celda ${f === hoy ? "hoy" : ""}" data-accion="ir-dia" data-fecha="${f}">
-      <div class="num">${d}</div><div class="dots">${dots}</div>
+      <div class="num">${f === hoy ? `<span class="num-hoy">${d}</span><span class="lbl-hoy">Hoy</span>` : d}</div><div class="dots">${dots}</div>
       ${items.slice(0, 3).map((x) => `<div class="chip ${x.c}">${esc(x.t)}</div>`).join("")}
       ${items.length > 3 ? `<div class="mas">+${items.length - 3}</div>` : ""}</div>`;
   }
@@ -391,11 +396,12 @@ function vistaAnio() {
       const f = `${y}-${pad(m + 1)}-${pad(d)}`;
       const n = (conteo[f] || 0) + tareasEn(f).length; total += n;
       const nivel = n === 0 ? 0 : n === 1 ? 1 : n <= 3 ? 2 : 3;
-      dias += `<span class="d n${nivel} ${f === hoy ? "hoy" : ""}" data-accion="ir-dia" data-fecha="${f}" title="${n} actividades">${d}</span>`;
+      dias += `<span class="d n${nivel} ${f === hoy ? "hoy" : ""}" data-accion="ir-dia" data-fecha="${f}" title="${f === hoy ? "Hoy · " : ""}${n} actividades">${d}</span>`;
     }
     const metasM = S.metas.filter((x) => x.anio === y && x.mes === m).length;
-    meses += `<div class="mini-mes">
-      <div class="mini-cab" data-accion="ir-mes" data-m="${m}">${cap(MESES[m])} <small>${total} act.${metasM ? ` · ${metasM} metas` : ""}</small></div>
+    const esMesActual = hoy.startsWith(`${y}-${pad(m + 1)}`);
+    meses += `<div class="mini-mes ${esMesActual ? "actual" : ""}" ${esMesActual ? 'id="mes-actual"' : ""}>
+      <div class="mini-cab" data-accion="ir-mes" data-m="${m}">${cap(MESES[m])}${esMesActual ? ' <span class="lbl-hoy">Hoy</span>' : ""} <small>${total} act.${metasM ? ` · ${metasM} metas` : ""}</small></div>
       <div class="mini-grid">${dias}</div></div>`;
   }
   const metasAnio = S.metas.filter((x) => x.anio === y).sort((a, b) => a.mes - b.mes);
@@ -405,6 +411,7 @@ function vistaAnio() {
     <button class="btn chico" data-accion="anio-mover" data-n="-1">‹</button>
     <h2 class="titulo-nav">${y}</h2>
     <button class="btn chico" data-accion="anio-mover" data-n="1">›</button>
+    <button class="btn chico" data-accion="anio-hoy">Hoy</button>
   </div>
   <h3>Metas del año</h3>
   ${listaMetas(metasAnio, false)}
@@ -546,6 +553,7 @@ const acciones = {
   "mes-mover": (d) => { const x = new Date(S.mes.y, S.mes.m + Number(d.n), 1); S.mes = { y: x.getFullYear(), m: x.getMonth() }; render(); },
   "mes-hoy": () => { const x = new Date(); S.mes = { y: x.getFullYear(), m: x.getMonth() }; render(); },
   "anio-mover": (d) => { S.anio += Number(d.n); render(); },
+  "anio-hoy": () => { S.anio = new Date().getFullYear(); render(); verMesActual(); },
   "ir-dia": (d) => { S.fecha = d.fecha; S.vista = "dia"; render(); window.scrollTo(0, 0); },
   "ir-mes": (d) => { S.mes = { y: S.anio, m: Number(d.m) }; S.vista = "mes"; render(); window.scrollTo(0, 0); },
   "filtro-reu": (d) => { S.filtroReu = d.f; render(); },
@@ -854,3 +862,59 @@ function abrirProyecto(p) {
     eliminar: p ? () => { if (confirm("¿Eliminar este proyecto? Las tareas asociadas se mantienen.")) { modal.close(); seguro(() => deleteDoc(docU("proyectos", p.id)), "Proyecto eliminado"); } } : null
   });
 }
+
+/* =========================================================
+   App instalable (PWA)
+   ========================================================= */
+let promptInstalar = null;
+const btnInstalar = $("#btn-instalar");
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  promptInstalar = e;
+  btnInstalar.classList.remove("oculto");
+});
+btnInstalar.addEventListener("click", async () => {
+  if (!promptInstalar) return;
+  promptInstalar.prompt();
+  await promptInstalar.userChoice;
+  promptInstalar = null;
+  btnInstalar.classList.add("oculto");
+});
+window.addEventListener("appinstalled", () => { btnInstalar.classList.add("oculto"); toast("Planificador instalado"); });
+
+if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  window.addEventListener("load", async () => {
+    try {
+      const reg = await navigator.serviceWorker.register("./sw.js");
+      const avisar = (sw) => {
+        $("#aviso-version").classList.remove("oculto");
+        $("#btn-actualizar").onclick = () => sw.postMessage("actualizar");
+      };
+      if (reg.waiting && navigator.serviceWorker.controller) avisar(reg.waiting);
+      reg.addEventListener("updatefound", () => {
+        const nuevo = reg.installing;
+        nuevo?.addEventListener("statechange", () => {
+          if (nuevo.state === "installed" && navigator.serviceWorker.controller) avisar(nuevo);
+        });
+      });
+      let recargando = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (recargando) return;
+        recargando = true;
+        location.reload();
+      });
+      // Revisa si hay versión nueva al volver a la app.
+      document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") reg.update().catch(() => {}); });
+    } catch (e) { console.warn("Service worker no registrado", e); }
+  });
+}
+
+// Si la app queda abierta de un día para otro, refresca para que "Hoy" se mueva solo.
+let ultimoDia = hoyISO();
+setInterval(() => {
+  if (hoyISO() !== ultimoDia) {
+    if (S.fecha === ultimoDia) S.fecha = hoyISO();
+    ultimoDia = hoyISO();
+    if (!modal.open) render();
+  }
+}, 60000);
