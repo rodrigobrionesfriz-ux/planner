@@ -259,3 +259,26 @@ input[type=range] { padding: 0; border: 0; accent-color: var(--acento); }
   .topbar { padding-top: max(8px, env(safe-area-inset-top)); }
   .fab { bottom: max(18px, calc(env(safe-area-inset-bottom) + 10px)); }
 }
+
+/* Seguimiento: estados y bandera */
+:root { --ok: #2e7d32; --ok-2: #e8f5e9; --atras: #c62828; --atras-2: #ffebee; --bandera: #ef6c00; }
+@media (prefers-color-scheme: dark) { :root { --ok: #81c784; --ok-2: #1e3324; --atras: #ef9a9a; --atras-2: #3a2224; --bandera: #ffb74d; } }
+.estado { font-weight: 600; padding: 0 .45em; border-radius: 8px; font-size: .72rem; white-space: nowrap; }
+.estado.ejec { background: var(--ok-2); color: var(--ok); }
+.estado.pend { background: var(--acento-2); color: var(--acento); }
+.estado.atras { background: var(--atras-2); color: var(--atras); }
+.bandera { flex: none; background: none; border: 1px solid transparent; border-radius: 8px; width: 34px; height: 34px; font-size: 1.1rem; line-height: 1; color: color-mix(in srgb, var(--suave) 55%, transparent); cursor: pointer; }
+.bandera:hover { color: var(--bandera); border-color: var(--borde); }
+.bandera.activa { color: var(--bandera); background: color-mix(in srgb, var(--bandera) 14%, transparent); }
+.item.con-bandera { box-shadow: inset -3px 0 0 var(--bandera), var(--sombra); }
+.slot .bandera { width: 28px; height: 28px; font-size: 1rem; }
+#nav .cont { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 2px; border-radius: 9px; background: var(--atras); color: #fff; font-size: .7rem; font-weight: 700; line-height: 18px; text-align: center; }
+.kpi b.rojo { color: var(--atras); }
+.aviso-pend { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--atras-2); color: var(--atras); border: 1px solid color-mix(in srgb, var(--atras) 35%, transparent); border-radius: var(--radio); padding: 8px 10px 8px 12px; margin: 8px 0; cursor: pointer; font-size: .9rem; }
+.aviso-pend .btn { color: var(--atras); border-color: color-mix(in srgb, var(--atras) 45%, transparent); background: var(--panel); }
+.fila-seg { display: grid; gap: 4px; }
+.seg-acciones { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+.btn.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 50%, transparent); }
+.cab-seccion { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 1.4em; }
+.cab-seccion h3 { margin: 0; }
+h3 small { font-weight: 400; text-transform: none; letter-spacing: 0; }

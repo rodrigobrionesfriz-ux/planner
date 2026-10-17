@@ -1,6 +1,6 @@
 /* Service worker del Planificador.
    Al cambiar archivos de la app, sube el número de VERSION para que los teléfonos tomen la nueva versión. */
-const VERSION = "v4";
+const VERSION = "v5";
 const CACHE = `planificador-${VERSION}`;
 const APP = [
   "./", "./index.html", "./styles.css", "./app.js", "./firebase-config.js", "./manifest.webmanifest",

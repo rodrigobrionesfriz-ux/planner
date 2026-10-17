@@ -70,6 +70,7 @@ const S = {
   mes: { y: ahora.getFullYear(), m: ahora.getMonth() },
   anio: ahora.getFullYear(),
   filtroReu: "proximas",
+  segPeriodo: 30,
   unsubs: [],
   chart: null
 };
@@ -100,7 +101,46 @@ function ocurre(t, f) {
   const ultimo = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
   return d.getDate() === Math.min(Number(t.diaMes) || 1, ultimo);
 }
-const instancia = (t, f) => esSerie(t) ? { ...t, fecha: f, completada: !!(t.hechas || {})[f] } : t;
+const instancia = (t, f) => esSerie(t)
+  ? { ...t, fecha: f, completada: !!(t.hechas || {})[f], seguimiento: !!(t.seguimientos || {})[f] }
+  : t;
+
+/* ---------- Seguimiento: ejecutada / pendiente / bandera ---------- */
+function estadoTarea(t) {
+  const hoy = hoyISO();
+  if (t.completada) return { txt: "Ejecutada", cls: "ejec" };
+  if (t.fecha < hoy) { const n = difDias(t.fecha, hoy); return { txt: `Pendiente · ${n} día${n === 1 ? "" : "s"}`, cls: "atras" }; }
+  if (t.fecha === hoy) return { txt: "Pendiente", cls: "pend" };
+  return null; // tareas futuras no llevan estado
+}
+// Pendientes de días anteriores (las series se revisan hasta "dias" hacia atrás)
+function pendientesAnteriores(dias = 365) {
+  const hoy = hoyISO(), desde = sumarDias(hoy, -dias);
+  const sueltas = S.tareas.filter((t) => !esSerie(t) && t.fecha && t.fecha < hoy && t.fecha >= desde && !t.completada);
+  const series = tareasEntre(desde, sumarDias(hoy, -1)).filter((t) => esSerie(t) && !t.completada);
+  return [...sueltas, ...series].sort((a, b) => (a.fecha + (a.horaInicio || "")).localeCompare(b.fecha + (b.horaInicio || "")));
+}
+function conBandera() {
+  const hoy = hoyISO(), desde = sumarDias(hoy, -365);
+  const sueltas = S.tareas.filter((t) => !esSerie(t) && t.seguimiento);
+  const series = S.tareas.filter((t) => esSerie(t)).flatMap((t) =>
+    Object.keys(t.seguimientos || {}).filter((f) => f >= desde && ocurre(t, f)).map((f) => instancia(t, f)));
+  return [...sueltas, ...series].sort((a, b) => (a.fecha || "").localeCompare(b.fecha || ""));
+}
+function marcarEjecutada(t, f, valor) {
+  if (esSerie(t)) return seguro(() => updateDoc(docU("tareas", t.id), { [`hechas.${f}`]: valor ? true : deleteField() }));
+  return seguro(() => updateDoc(docU("tareas", t.id), { completada: valor }));
+}
+function marcarBandera(t, f, valor) {
+  if (esSerie(t)) return seguro(() => updateDoc(docU("tareas", t.id), { [`seguimientos.${f}`]: valor ? true : deleteField() }));
+  return seguro(() => updateDoc(docU("tareas", t.id), { seguimiento: valor }));
+}
+function actualizarContadorSeg() {
+  const claves = new Set([...pendientesAnteriores(S.segPeriodo), ...conBandera().filter((t) => !t.completada)].map((t) => t.id + "|" + t.fecha));
+  const n = claves.size;
+  const b = document.querySelector('#nav button[data-vista="seguimiento"] .cont');
+  if (b) { b.textContent = n; b.classList.toggle("oculto", !n); }
+}
 const tareasEn = (f) => S.tareas.filter((t) => ocurre(t, f)).map((t) => instancia(t, f));
 function tareasEntre(a, b) {
   const out = [];
@@ -246,8 +286,9 @@ function render() {
   if (!S.user) return;
   document.querySelectorAll("#nav button").forEach((b) => b.classList.toggle("activo", b.dataset.vista === S.vista));
   if (S.chart) { S.chart.destroy(); S.chart = null; }
-  const vistas = { dia: vistaDia, mes: vistaMes, anio: vistaAnio, reuniones: vistaReuniones, proyectos: vistaProyectos };
+  const vistas = { dia: vistaDia, mes: vistaMes, anio: vistaAnio, reuniones: vistaReuniones, proyectos: vistaProyectos, seguimiento: vistaSeguimiento };
   contenido.innerHTML = vistas[S.vista]();
+  actualizarContadorSeg();
   if (S.vista === "proyectos") graficoProyectos();
 }
 
@@ -258,13 +299,17 @@ $("#fab").addEventListener("click", () => {
 });
 
 /* ---------- Vista DÍA ---------- */
-function itemTarea(t) {
+function itemTarea(t, { conFecha = false } = {}) {
   const p = t.proyectoId ? proyectoPorId(t.proyectoId) : null;
-  return `<div class="item tarea prio-${esc(t.prioridad || "media")} ${t.completada ? "hecha" : ""}" data-accion="editar-tarea" data-id="${t.id}" data-fecha="${esc(t.fecha)}">
-    <input type="checkbox" ${t.completada ? "checked" : ""} data-accion="toggle-tarea" data-id="${t.id}" data-fecha="${esc(t.fecha)}" aria-label="Completar">
+  const est = estadoTarea(t);
+  return `<div class="item tarea prio-${esc(t.prioridad || "media")} ${t.completada ? "hecha" : ""} ${t.seguimiento ? "con-bandera" : ""}" data-accion="editar-tarea" data-id="${t.id}" data-fecha="${esc(t.fecha)}">
+    <input type="checkbox" ${t.completada ? "checked" : ""} data-accion="toggle-tarea" data-id="${t.id}" data-fecha="${esc(t.fecha)}" aria-label="Marcar como ejecutada" title="${t.completada ? "Marcar como pendiente" : "Marcar como ejecutada"}">
     <div class="item-txt"><b>${esc(t.titulo)}</b>
-      <small>${rangoHora(t)}${esSerie(t) ? ` · <span class="rep" title="${esc(textoRep(t))}">↻ ${t.repetir === "semanal" ? "Semanal" : "Mensual"}</span>` : ""}${t.categoria ? " · " + esc(t.categoria) : ""}${p ? ` · <span class="tag" style="--c:${esc(p.color)}">${esc(p.nombre)}</span>` : ""}</small>
-    </div></div>`;
+      <small>${est ? `<span class="estado ${est.cls}">${est.txt}</span> · ` : ""}${conFecha ? fechaCorta(t.fecha) + " · " : ""}${rangoHora(t)}${esSerie(t) ? ` · <span class="rep" title="${esc(textoRep(t))}">↻ ${t.repetir === "semanal" ? "Semanal" : "Mensual"}</span>` : ""}${t.categoria ? " · " + esc(t.categoria) : ""}${p ? ` · <span class="tag" style="--c:${esc(p.color)}">${esc(p.nombre)}</span>` : ""}</small>
+    </div>
+    <button type="button" class="bandera ${t.seguimiento ? "activa" : ""}" data-accion="toggle-bandera" data-id="${t.id}" data-fecha="${esc(t.fecha)}"
+      title="${t.seguimiento ? "Quitar bandera de seguimiento" : "Marcar para seguimiento"}" aria-label="Bandera de seguimiento" aria-pressed="${!!t.seguimiento}">⚑</button>
+    </div>`;
 }
 function itemReunion(r) {
   const invit = r.ownerUid !== uid();
@@ -282,6 +327,7 @@ function vistaDia() {
   const hechas = tareas.filter((t) => t.completada).length;
   const pct = tareas.length ? Math.round((hechas / tareas.length) * 100) : 0;
   const proys = proyActivos(f);
+  const pendAnt = f === hoy ? pendientesAnteriores(S.segPeriodo) : [];
 
   const horasUsadas = [...tareas, ...reus].filter((x) => x.horaInicio).map((x) => Number(x.horaInicio.slice(0, 2)));
   const desde = Math.min(7, ...horasUsadas);
@@ -309,11 +355,14 @@ function vistaDia() {
   <h2>${fechaLarga(f)}</h2>
   <div class="resumen">
     <div class="kpi"><b>${tareas.length}</b><span>tareas</span></div>
-    <div class="kpi"><b>${hechas}</b><span>hechas</span></div>
-    <div class="kpi"><b>${reus.length}</b><span>reuniones</span></div>
-    <div class="kpi ancho"><span>Avance del día ${pct}%</span><div class="barra"><i style="width:${pct}%"></i></div></div>
+    <div class="kpi"><b>${hechas}</b><span>ejecutadas</span></div>
+    <div class="kpi"><b>${tareas.length - hechas}</b><span>pendientes</span></div>
+    <div class="kpi ancho"><span>${reus.length} reunion${reus.length === 1 ? "" : "es"} · Avance del día ${pct}%</span><div class="barra"><i style="width:${pct}%"></i></div></div>
   </div>
   ${proys.length ? `<div class="proy-hoy">${proys.map((p) => `<span class="tag" style="--c:${esc(p.color)}">${esc(p.nombre)} ${avance(p)}%</span>`).join("")}</div>` : ""}
+  ${f === hoy && pendAnt.length ? `<div class="aviso-pend" data-accion="ir-seguimiento">
+    <span>⚑ Tienes <b>${pendAnt.length}</b> tarea${pendAnt.length === 1 ? "" : "s"} pendiente${pendAnt.length === 1 ? "" : "s"} de días anteriores</span>
+    <span class="btn chico">Revisar</span></div>` : ""}
   <div class="acciones-rapidas">
     <button class="btn primario" data-accion="nueva-tarea">+ Tarea</button>
     <button class="btn" data-accion="nueva-reunion">+ Reunión</button>
@@ -321,6 +370,53 @@ function vistaDia() {
   ${sinHora ? `<h3>Sin hora asignada</h3><div class="lista">${sinHora}</div>` : ""}
   <h3>Agenda</h3>
   <div class="agenda">${filas}</div>`;
+}
+
+/* ---------- Vista SEGUIMIENTO ---------- */
+function filaSeg(t) {
+  const hoy = hoyISO();
+  return `<div class="fila-seg">
+    ${itemTarea(t, { conFecha: true })}
+    <div class="seg-acciones">
+      ${t.completada
+        ? `<button class="btn chico" data-accion="seg-pendiente" data-id="${t.id}" data-fecha="${esc(t.fecha)}">Volver a pendiente</button>`
+        : `<button class="btn chico ok" data-accion="seg-ejecutada" data-id="${t.id}" data-fecha="${esc(t.fecha)}">✓ Ejecutada</button>`}
+      ${!t.completada && t.fecha < hoy ? `<button class="btn chico" data-accion="seg-a-hoy" data-id="${t.id}" data-fecha="${esc(t.fecha)}">Pasar a hoy</button>` : ""}
+    </div></div>`;
+}
+function vistaSeguimiento() {
+  const hoy = hoyISO(), per = S.segPeriodo;
+  const banderas = conBandera();
+  const bAbiertas = banderas.filter((t) => !t.completada), bCerradas = banderas.filter((t) => t.completada);
+  const pend = pendientesAnteriores(per).filter((t) => !t.seguimiento);
+  const deHoy = tareasEn(hoy);
+  const hoyPend = deHoy.filter((t) => !t.completada && !t.seguimiento);
+  const ejecRec = tareasEntre(sumarDias(hoy, -6), hoy).filter((t) => t.completada).length;
+  const periodos = [[7, "7 días"], [30, "30 días"], [90, "90 días"], [365, "1 año"]];
+  return `
+  <div class="barra-nav"><h2 class="titulo-nav">Seguimiento</h2></div>
+  <div class="resumen">
+    <div class="kpi"><b class="rojo">${pendientesAnteriores(per).length}</b><span>pendientes anteriores</span></div>
+    <div class="kpi"><b>${bAbiertas.length}</b><span>con bandera abiertas</span></div>
+    <div class="kpi"><b>${ejecRec}</b><span>ejecutadas en 7 días</span></div>
+  </div>
+  <p class="nota">Marca con ⚑ las tareas que quieres seguir de cerca. Las tareas de días anteriores que no marcaste como ejecutadas aparecen aquí como pendientes.</p>
+
+  <h3>⚑ Con bandera <small>(${bAbiertas.length})</small></h3>
+  ${bAbiertas.length ? `<div class="lista">${bAbiertas.map(filaSeg).join("")}</div>` : `<p class="vacio">No hay tareas con bandera pendientes.</p>`}
+
+  <h3>Pendientes de hoy <small>(${hoyPend.length})</small></h3>
+  ${hoyPend.length ? `<div class="lista">${hoyPend.sort(porHora).map(filaSeg).join("")}</div>` : `<p class="vacio">${deHoy.length ? "Todo lo de hoy está ejecutado." : "No hay tareas para hoy."}</p>`}
+
+  <div class="cab-seccion">
+    <h3>Pendientes de días anteriores <small>(${pend.length})</small></h3>
+    <div class="segmento">${periodos.map(([n, l]) => `<button class="${per === n ? "activo" : ""}" data-accion="seg-periodo" data-n="${n}">${l}</button>`).join("")}</div>
+  </div>
+  ${pend.length ? `<div class="lista">${[...pend].reverse().map(filaSeg).join("")}</div>` : `<p class="vacio">Sin pendientes en este período. 👍</p>`}
+
+  ${bCerradas.length ? `<h3>Con bandera ya ejecutadas <small>(${bCerradas.length})</small></h3>
+  <div class="lista">${bCerradas.slice(-20).reverse().map(filaSeg).join("")}</div>
+  <p class="nota">Quita la bandera ⚑ cuando ya no necesites seguirlas.</p>` : ""}`;
 }
 
 /* ---------- Vista MES ---------- */
@@ -565,6 +661,30 @@ const acciones = {
     if (t) abrirTarea(t, {}, esSerie(t) ? d.fecha : null);
   },
   "editar-serie": (d) => { const t = S.tareas.find((x) => x.id === d.id); if (t) abrirTarea(t); },
+  "toggle-bandera": (d, e) => {
+    e.stopPropagation();
+    const t = S.tareas.find((x) => x.id === d.id);
+    if (!t) return;
+    const actual = esSerie(t) ? !!(t.seguimientos || {})[d.fecha] : !!t.seguimiento;
+    marcarBandera(t, d.fecha, !actual);
+    toast(actual ? "Bandera quitada" : "Marcada para seguimiento");
+  },
+  "ir-seguimiento": () => { S.vista = "seguimiento"; render(); window.scrollTo(0, 0); },
+  "seg-periodo": (d) => { S.segPeriodo = Number(d.n); render(); },
+  "seg-ejecutada": (d) => { const t = S.tareas.find((x) => x.id === d.id); if (t) marcarEjecutada(t, d.fecha, true); },
+  "seg-pendiente": (d) => { const t = S.tareas.find((x) => x.id === d.id); if (t) marcarEjecutada(t, d.fecha, false); },
+  "seg-a-hoy": (d) => {
+    const t = S.tareas.find((x) => x.id === d.id);
+    if (!t) return;
+    const hoy = hoyISO();
+    if (!esSerie(t)) return seguro(() => updateDoc(docU("tareas", t.id), { fecha: hoy }), "Tarea movida a hoy");
+    // Repetitiva: se crea una tarea suelta hoy y ese día se quita de la serie.
+    const { id, repetir, diasSemana, diaMes, hasta, hechas, seguimientos, excepciones, creado, ...resto } = t;
+    seguro(async () => {
+      await addDoc(col("tareas"), { ...resto, fecha: hoy, repetir: "", completada: false, seguimiento: !!(seguimientos || {})[d.fecha], creado: serverTimestamp() });
+      await updateDoc(docU("tareas", t.id), { excepciones: arrayUnion(d.fecha), [`seguimientos.${d.fecha}`]: deleteField() });
+    }, "Tarea movida a hoy");
+  },
   "toggle-tarea": (d, e) => {
     e.stopPropagation();
     const t = S.tareas.find((x) => x.id === d.id);
@@ -703,15 +823,16 @@ function abrirTarea(t, def = {}, fechaInst = null) {
     </div>
     <div class="fila2">
       <label>Prioridad<select id="f-prio">
-        ${["alta", "media", "baja"].map((p) => `<option value="${p}" ${x.prioridad === p ? "selected" : ""}>${cap(p)}</option>`).join("")}
+        ${["alta", "media", "baja"].map((p) => `<option value="${p}" ${(x.prioridad || "media") === p ? "selected" : ""}>${cap(p)}</option>`).join("")}
       </select></label>
       <label>Categoría<input id="f-cat" list="lista-cats" value="${esc(x.categoria)}" placeholder="Ej: Trabajo">
         <datalist id="lista-cats">${cats.map((c) => `<option value="${esc(c)}">`).join("")}</datalist></label>
     </div>
     <label>Proyecto<select id="f-proy"><option value="">Ninguno</option>${proys}</select></label>
     <label>Notas<textarea id="f-desc" rows="3">${esc(x.descripcion)}</textarea></label>
-    ${inst ? `<label class="check"><input id="f-hecha" type="checkbox" ${hechaInst ? "checked" : ""}> Hecha el ${fechaCorta(inst)}</label>`
-      : t && !serie ? `<label class="check"><input id="f-hecha" type="checkbox" ${x.completada ? "checked" : ""}> Completada</label>` : ""}`,
+    ${inst ? `<label class="check"><input id="f-hecha" type="checkbox" ${hechaInst ? "checked" : ""}> Ejecutada el ${fechaCorta(inst)}</label>`
+      : t && !serie ? `<label class="check"><input id="f-hecha" type="checkbox" ${x.completada ? "checked" : ""}> Ejecutada</label>` : ""}
+    ${!serie || inst ? `<label class="check"><input id="f-bandera" type="checkbox" ${(inst ? !!(t.seguimientos || {})[inst] : !!x.seguimiento) ? "checked" : ""}> ⚑ Marcar para seguimiento</label>` : ""}`,
   {
     guardar: async () => {
       const comun = {
@@ -720,12 +841,13 @@ function abrirTarea(t, def = {}, fechaInst = null) {
       };
       if (comun.horaInicio && comun.horaFin && comun.horaFin < comun.horaInicio) { toast("La hora de término es anterior al inicio", true); return false; }
       const hechaChk = modalForm.querySelector("#f-hecha")?.checked || false;
+      const banderaChk = modalForm.querySelector("#f-bandera")?.checked || false;
 
       // Cambiar solo un día de la serie: se crea una tarea suelta y ese día se excluye de la serie.
       if (inst && val("f-aplica") === "dia") {
         await seguro(async () => {
-          await addDoc(col("tareas"), { ...comun, repetir: "", completada: hechaChk, creado: serverTimestamp() });
-          await updateDoc(docU("tareas", t.id), { excepciones: arrayUnion(inst) });
+          await addDoc(col("tareas"), { ...comun, repetir: "", completada: hechaChk, seguimiento: banderaChk, creado: serverTimestamp() });
+          await updateDoc(docU("tareas", t.id), { excepciones: arrayUnion(inst), [`seguimientos.${inst}`]: deleteField() });
         }, "Cambio guardado solo para ese día");
         return;
       }
@@ -744,11 +866,13 @@ function abrirTarea(t, def = {}, fechaInst = null) {
       }
 
       if (t) {
-        if (inst) data[`hechas.${inst}`] = hechaChk ? true : deleteField();
-        else if (!serie && repetir === "no") data.completada = hechaChk;
+        if (inst) {
+          data[`hechas.${inst}`] = hechaChk ? true : deleteField();
+          data[`seguimientos.${inst}`] = banderaChk ? true : deleteField();
+        } else if (!serie && repetir === "no") { data.completada = hechaChk; data.seguimiento = banderaChk; }
         await seguro(() => updateDoc(docU("tareas", t.id), data), repetir === "no" ? "Tarea actualizada" : "Serie actualizada");
       } else {
-        await seguro(() => addDoc(col("tareas"), { ...data, completada: false, creado: serverTimestamp() }),
+        await seguro(() => addDoc(col("tareas"), { ...data, completada: false, seguimiento: repetir === "no" && banderaChk, creado: serverTimestamp() }),
           repetir === "no" ? "Tarea creada" : "Tarea repetitiva creada");
       }
     },

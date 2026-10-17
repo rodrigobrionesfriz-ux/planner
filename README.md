@@ -11,6 +11,7 @@ App web multiusuario para planificar el día, el mes y el año. Se aloja gratis 
 - **Proyectos de varios días:** hitos con fecha, avance automático, gráfico de avance real vs esperado y línea de tiempo (Gantt) con marca de hoy.
 - Acceso con correo y contraseña o con Google. Cada usuario ve solo sus datos.
 - **Tareas que se repiten:** cada semana (eliges los días) o cada mes (eliges el día), con fecha de término opcional. Cada repetición se marca como hecha por separado, y al editar o eliminar puedes elegir solo ese día o toda la serie. En la vista Mes aparece la lista de tareas repetitivas.
+- **Seguimiento:** cada tarea de hoy o de días anteriores muestra si está *Ejecutada* o *Pendiente* (con los días de atraso), y se puede marcar con una bandera ⚑ para seguirla de cerca. La vista *Seguimiento* reúne las tareas con bandera, las pendientes de hoy y las pendientes de días anteriores, con botones para marcarlas ejecutadas o pasarlas a hoy. En la vista Día de hoy aparece un aviso si quedan pendientes atrás.
 - **App instalable (PWA):** se instala en el celular o el computador como una app más, con su ícono, y abre aunque no haya conexión.
 - **Hoy destacado:** en Mes y Año el día actual queda marcado en azul, y en Año también el mes en curso.
 - Funciona sin conexión momentánea (caché local de Firestore) y se adapta a celular y modo oscuro.
@@ -58,9 +59,9 @@ y abre http://localhost:8000 (localhost ya viene autorizado en Firebase).
 
 ```
 users/{uid}                      perfil: nombre, email, ultimoAcceso
-users/{uid}/tareas/{id}          titulo, fecha, horaInicio, horaFin, prioridad, categoria, proyectoId, descripcion, completada
+users/{uid}/tareas/{id}          titulo, fecha, horaInicio, horaFin, prioridad, categoria, proyectoId, descripcion, completada, seguimiento
                                  repetir ("" | semanal | mensual), diasSemana[0-6], diaMes, hasta,
-                                 hechas{fecha: true}, excepciones[fechas]   (solo en tareas repetitivas)
+                                 hechas{fecha: true}, seguimientos{fecha: true}, excepciones[fechas]   (solo en tareas repetitivas)
 users/{uid}/proyectos/{id}       nombre, descripcion, fechaInicio, fechaFin, color, avance, hitos[{texto, fecha, hecho}]
 users/{uid}/metas/{id}           titulo, anio, mes (-1 = todo el año), hecha
 reuniones/{id}                   titulo, fecha, horas, lugar, enlace, agenda, acuerdos, estado,
